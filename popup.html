@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>BD Currency Converter</title>
+    <title>Currency Converter</title>
     <style>
       * {
         box-sizing: border-box;
@@ -19,7 +19,7 @@
         background: #ffffff;
         color: #1a1a1a;
         width: 300px;
-        min-height: 360px;
+        min-height: 320px;
       }
 
       .header {
@@ -36,7 +36,7 @@
         color: #1a1a1a;
       }
 
-      .rate-badge {
+      .active-badge {
         font-size: 11px;
         background: #e1f5ee;
         color: #085041;
@@ -49,10 +49,17 @@
         padding: 14px 16px;
       }
 
-      .from-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
+      .section-title {
+        font-size: 12px;
+        font-weight: 600;
+        color: #1a1a1a;
+        margin-bottom: 4px;
+      }
+
+      .section-desc {
+        font-size: 11px;
+        color: #888;
+        line-height: 1.4;
         margin-bottom: 10px;
       }
 
@@ -72,7 +79,6 @@
       }
 
       input[type="number"] {
-        flex: 1;
         background: #f5f5f5;
         border: 1px solid #e0e0e0;
         border-radius: 8px;
@@ -88,6 +94,7 @@
         border-color: #1d9e75;
         background: #fff;
       }
+
       input[type="number"]::-webkit-inner-spin-button {
         display: none;
       }
@@ -95,52 +102,54 @@
       .divider {
         height: 1px;
         background: #f0f0f0;
-        margin: 12px 0;
+        margin: 14px 0;
       }
 
-      .result-block {
-        background: #f8fffe;
-        border: 1px solid #d0ede5;
-        border-radius: 10px;
-        padding: 12px 14px;
+      .convert-field {
         margin-bottom: 10px;
       }
 
-      .result-bdt-label {
-        font-size: 11px;
-        color: #0f6e56;
-        font-weight: 500;
-        margin-bottom: 4px;
-      }
-
-      .result-bdt-amount {
-        font-size: 26px;
-        font-weight: 700;
-        color: #0a5c45;
-        letter-spacing: -0.5px;
-      }
-
-      .other-results {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 6px;
-      }
-
-      .other-item {
-        background: #f5f5f5;
-        border-radius: 8px;
-        padding: 8px 10px;
-      }
-
-      .other-label {
+      .convert-field-label {
         font-size: 11px;
         color: #888;
+        font-weight: 500;
+        margin-bottom: 5px;
       }
-      .other-value {
-        font-size: 13px;
+
+      .convert-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .convert-row select {
+        width: 92px;
+        flex-shrink: 0;
+      }
+
+      .convert-row input[type="number"],
+      .convert-row .output-value {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .output-value {
+        background: #f8fffe;
+        border: 1px solid #d0ede5;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 15px;
         font-weight: 600;
-        color: #333;
-        margin-top: 1px;
+        color: #0a5c45;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .rate-badge {
+        font-size: 11px;
+        color: #888;
+        margin-top: 2px;
       }
 
       .footer {
@@ -162,17 +171,6 @@
         border-radius: 8px;
         padding: 10px 12px;
         margin-top: 8px;
-      }
-
-      .settings-section {
-        margin-top: 4px;
-      }
-
-      .settings-label {
-        font-size: 11px;
-        color: #888;
-        font-weight: 500;
-        margin-bottom: 6px;
       }
 
       .settings-row {
@@ -216,68 +214,66 @@
   </head>
   <body>
     <div class="header">
-      <span class="header-title">BDT Converter</span>
-      <span class="rate-badge" id="rate-badge">Loading...</span>
+      <span class="header-title">Currency Converter</span>
+      <span class="active-badge" id="active-badge">BDT</span>
     </div>
 
     <div class="body">
-      <div class="from-row">
-        <select id="currency-select"></select>
-        <input
-          type="number"
-          id="amount-input"
-          value="100"
-          min="0"
-          step="any"
-          placeholder="Amount"
-        />
-      </div>
-
-      <div class="result-block">
-        <div class="result-bdt-label">Bangladeshi Taka (BDT)</div>
-        <div class="result-bdt-amount" id="bdt-result">—</div>
-      </div>
-
-      <div class="other-results">
-        <div class="other-item">
-          <div class="other-label">USD</div>
-          <div class="other-value" id="usd-result">—</div>
-        </div>
-        <div class="other-item">
-          <div class="other-label">EUR</div>
-          <div class="other-value" id="eur-result">—</div>
-        </div>
-        <div class="other-item">
-          <div class="other-label">GBP</div>
-          <div class="other-value" id="gbp-result">—</div>
-        </div>
-        <div class="other-item">
-          <div class="other-label">INR</div>
-          <div class="other-value" id="inr-result">—</div>
-        </div>
-      </div>
-
-      <div id="error-msg" class="error-msg" style="display: none">
-        Could not load rates. Something has gone wrong.
-      </div>
-
-      <div class="divider"></div>
-
-      <div class="settings-section">
-        <div class="settings-label">Hover tooltip currency</div>
+      <section class="settings-section">
+        <div class="section-title">Hover tooltip currency</div>
+        <p class="section-desc">
+          Pick a currency and save. Hover over prices like $99, €49, or £25 on
+          any page to see the conversion.
+        </p>
         <div class="settings-row">
           <select id="target-currency-select"></select>
           <button id="save-btn" class="save-btn">Save</button>
         </div>
         <div class="save-status" id="save-status"></div>
-      </div>
+      </section>
+
+      <div class="divider"></div>
+
+      <section class="converter-section">
+        <div class="section-title">Quick convert</div>
+        <p class="section-desc">
+          Select currencies, enter an amount, and see the result instantly.
+        </p>
+
+        <div class="convert-field">
+          <div class="convert-field-label">From</div>
+          <div class="convert-row">
+            <select id="from-currency-select"></select>
+            <input
+              type="number"
+              id="from-amount-input"
+              value="100"
+              min="0"
+              step="any"
+              placeholder="Amount"
+            />
+          </div>
+        </div>
+
+        <div class="convert-field">
+          <div class="convert-field-label">To</div>
+          <div class="convert-row">
+            <select id="to-currency-select"></select>
+            <div class="output-value" id="to-amount-output">—</div>
+          </div>
+        </div>
+
+        <div class="rate-badge" id="rate-badge"></div>
+
+        <div id="error-msg" class="error-msg" style="display: none">
+          Could not load rates. Check your connection and try again.
+        </div>
+      </section>
     </div>
 
     <div class="footer" id="footer">
-      Rate data from
-      <a href="https://www.exchangerate-api.com" target="_blank"
-        >exchangerate-api.com</a
-      >
+      Rates from
+      <a href="https://frankfurter.dev" target="_blank">frankfurter.dev</a>
     </div>
 
     <script src="currencies.js"></script>

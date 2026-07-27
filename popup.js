@@ -2,35 +2,42 @@
 
 let rates = null;
 let ratesBase = "BDT";
+let targetCurrency = "BDT";
 
-const amountInput = document.getElementById("amount-input");
-const currencySelect = document.getElementById("currency-select");
+const fromAmountInput = document.getElementById("from-amount-input");
+const fromCurrencySelect = document.getElementById("from-currency-select");
+const toCurrencySelect = document.getElementById("to-currency-select");
+const toAmountOutput = document.getElementById("to-amount-output");
 const targetCurrencySelect = document.getElementById("target-currency-select");
 const saveBtn = document.getElementById("save-btn");
 const saveStatus = document.getElementById("save-status");
-const bdtResult = document.getElementById("bdt-result");
-const usdResult = document.getElementById("usd-result");
-const eurResult = document.getElementById("eur-result");
-const gbpResult = document.getElementById("gbp-result");
-const inrResult = document.getElementById("inr-result");
+const activeBadge = document.getElementById("active-badge");
 const rateBadge = document.getElementById("rate-badge");
 const errorMsg = document.getElementById("error-msg");
 const footer = document.getElementById("footer");
 
-function populateCurrencySelects() {
-  const options = Object.entries(CURRENCIES)
+function currencyOptions() {
+  return Object.entries(CURRENCIES)
     .map(
       ([code, info]) => `<option value="${code}">${info.flag} ${code}</option>`,
     )
     .join("");
+}
 
-  currencySelect.innerHTML = options;
+function populateCurrencySelects() {
+  const options = currencyOptions();
+  fromCurrencySelect.innerHTML = options;
+  toCurrencySelect.innerHTML = options;
   targetCurrencySelect.innerHTML = options;
-  currencySelect.value = "USD";
+  fromCurrencySelect.value = "USD";
+  toCurrencySelect.value = "BDT";
+}
+
+function updateActiveBadge() {
+  activeBadge.textContent = targetCurrency;
 }
 
 function formatBDT(amount) {
-  // Bangladeshi lakh system: 1,00,000
   const fixed = Math.round(amount);
   const str = fixed.toString();
   if (str.length <= 3) return "৳ " + str;
@@ -40,12 +47,19 @@ function formatBDT(amount) {
   return "৳ " + formatted;
 }
 
-function fmt(amount, symbol, decimals = 2) {
-  return (
-    symbol +
-    " " +
-    amount.toFixed(decimals).replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-  );
+function formatCurrency(amount, code) {
+  const info = CURRENCIES[code];
+  if (!info) return amount.toFixed(2);
+
+  const decimals = info.decimals ?? 2;
+  const fixed =
+    decimals === 0 ? Math.round(amount) : Number(amount.toFixed(decimals));
+
+  if (code === "BDT") return formatBDT(fixed);
+
+  const str = fixed.toFixed(decimals);
+  const formatted = str.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return info.symbol + " " + formatted;
 }
 
 function convertAmount(amount, from, to) {
@@ -57,36 +71,37 @@ function convertAmount(amount, from, to) {
 function convert() {
   if (!rates) return;
 
-  const amount = parseFloat(amountInput.value);
-  if (isNaN(amount) || amount < 0) return;
+  const amount = parseFloat(fromAmountInput.value);
+  const from = fromCurrencySelect.value;
+  const to = toCurrencySelect.value;
 
-  const from = currencySelect.value;
-  if (rates[from] == null) return;
+  if (isNaN(amount) || amount < 0 || rates[from] == null || rates[to] == null) {
+    toAmountOutput.textContent = "—";
+    rateBadge.textContent = "";
+    return;
+  }
 
-  const bdtAmount = convertAmount(amount, from, "BDT");
-  if (bdtAmount == null) return;
+  const result = convertAmount(amount, from, to);
+  if (result == null) {
+    toAmountOutput.textContent = "—";
+    rateBadge.textContent = "";
+    return;
+  }
 
-  const toUSD = convertAmount(amount, from, "USD");
-  const toEUR = convertAmount(amount, from, "EUR");
-  const toGBP = convertAmount(amount, from, "GBP");
-  const toINR = convertAmount(amount, from, "INR");
+  toAmountOutput.textContent = formatCurrency(result, to);
 
-  bdtResult.textContent = formatBDT(bdtAmount);
-  usdResult.textContent = fmt(toUSD, "$");
-  eurResult.textContent = fmt(toEUR, "€");
-  gbpResult.textContent = fmt(toGBP, "£");
-  inrResult.textContent = fmt(toINR, "₹", 0);
-
-  const oneInBdt = convertAmount(1, from, "BDT");
-  rateBadge.textContent = `1 ${from} = ${formatBDT(oneInBdt)}`;
+  const oneUnit = convertAmount(1, from, to);
+  rateBadge.textContent = `1 ${from} = ${formatCurrency(oneUnit, to)}`;
 }
 
 async function loadSavedTargetCurrency() {
   const stored = await chrome.storage.local.get("targetCurrency");
-  const saved = stored.targetCurrency || "BDT";
-  if (CURRENCIES[saved]) {
-    targetCurrencySelect.value = saved;
+  targetCurrency = stored.targetCurrency || "BDT";
+  if (CURRENCIES[targetCurrency]) {
+    targetCurrencySelect.value = targetCurrency;
+    toCurrencySelect.value = targetCurrency;
   }
+  updateActiveBadge();
 }
 
 async function saveTargetCurrency() {
@@ -106,12 +121,15 @@ async function saveTargetCurrency() {
   if (response?.ok) {
     rates = response.rates;
     ratesBase = response.ratesBase;
-    saveStatus.textContent = `Saved — tooltips will show ${code}`;
+    targetCurrency = code;
+    toCurrencySelect.value = code;
+    updateActiveBadge();
+    saveStatus.textContent = `Saved — hover tooltips now show ${code}`;
     convert();
     return;
   }
 
-  saveStatus.textContent = "Could not fetch rates. Try again.";
+  saveStatus.textContent = "Could not fetch rates. Try another currency.";
 }
 
 async function init() {
@@ -124,7 +142,7 @@ async function init() {
 
   if (!rates) {
     errorMsg.style.display = "block";
-    rateBadge.textContent = "No data";
+    activeBadge.textContent = "—";
     return;
   }
 
@@ -141,8 +159,9 @@ async function init() {
   convert();
 }
 
-amountInput.addEventListener("input", convert);
-currencySelect.addEventListener("change", convert);
+fromAmountInput.addEventListener("input", convert);
+fromCurrencySelect.addEventListener("change", convert);
+toCurrencySelect.addEventListener("change", convert);
 saveBtn.addEventListener("click", saveTargetCurrency);
 
 init();
