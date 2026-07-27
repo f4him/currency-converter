@@ -1,12 +1,13 @@
-// popup.js
-// Rates are BDT-based: rates[currency] = how much 1 BDT is in that currency
-// To convert foreign amount → BDT: bdtAmount = amount / rates[fromCurrency]
-// To convert BDT → foreign: foreignAmount = bdtAmount * rates[foreignCurrency]
+// Rates are base-based: rates[currency] = how much 1 unit of base is in that currency
 
 let rates = null;
+let ratesBase = "BDT";
 
 const amountInput = document.getElementById("amount-input");
 const currencySelect = document.getElementById("currency-select");
+const targetCurrencySelect = document.getElementById("target-currency-select");
+const saveBtn = document.getElementById("save-btn");
+const saveStatus = document.getElementById("save-status");
 const bdtResult = document.getElementById("bdt-result");
 const usdResult = document.getElementById("usd-result");
 const eurResult = document.getElementById("eur-result");
@@ -15,6 +16,18 @@ const inrResult = document.getElementById("inr-result");
 const rateBadge = document.getElementById("rate-badge");
 const errorMsg = document.getElementById("error-msg");
 const footer = document.getElementById("footer");
+
+function populateCurrencySelects() {
+  const options = Object.entries(CURRENCIES)
+    .map(
+      ([code, info]) => `<option value="${code}">${info.flag} ${code}</option>`,
+    )
+    .join("");
+
+  currencySelect.innerHTML = options;
+  targetCurrencySelect.innerHTML = options;
+  currencySelect.value = "USD";
+}
 
 function formatBDT(amount) {
   // Bangladeshi lakh system: 1,00,000
@@ -35,6 +48,12 @@ function fmt(amount, symbol, decimals = 2) {
   );
 }
 
+function convertAmount(amount, from, to) {
+  if (!rates || rates[from] == null || rates[to] == null) return null;
+  const inBase = from === ratesBase ? amount : amount / rates[from];
+  return to === ratesBase ? inBase : inBase * rates[to];
+}
+
 function convert() {
   if (!rates) return;
 
@@ -44,14 +63,13 @@ function convert() {
   const from = currencySelect.value;
   if (rates[from] == null) return;
 
-  // Step 1: Convert input amount → BDT
-  const bdtAmount = from === "BDT" ? amount : amount / rates[from];
+  const bdtAmount = convertAmount(amount, from, "BDT");
+  if (bdtAmount == null) return;
 
-  // Step 2: Convert BDT → other display currencies
-  const toUSD = bdtAmount * rates["USD"];
-  const toEUR = bdtAmount * rates["EUR"];
-  const toGBP = bdtAmount * rates["GBP"];
-  const toINR = bdtAmount * rates["INR"];
+  const toUSD = convertAmount(amount, from, "USD");
+  const toEUR = convertAmount(amount, from, "EUR");
+  const toGBP = convertAmount(amount, from, "GBP");
+  const toINR = convertAmount(amount, from, "INR");
 
   bdtResult.textContent = formatBDT(bdtAmount);
   usdResult.textContent = fmt(toUSD, "$");
@@ -59,14 +77,50 @@ function convert() {
   gbpResult.textContent = fmt(toGBP, "£");
   inrResult.textContent = fmt(toINR, "₹", 0);
 
-  // Badge: show how much 1 unit of selected currency = BDT
-  const oneBDT = from === "BDT" ? 1 : 1 / rates[from];
-  rateBadge.textContent = `1 ${from} = ${formatBDT(oneBDT)}`;
+  const oneInBdt = convertAmount(1, from, "BDT");
+  rateBadge.textContent = `1 ${from} = ${formatBDT(oneInBdt)}`;
+}
+
+async function loadSavedTargetCurrency() {
+  const stored = await chrome.storage.local.get("targetCurrency");
+  const saved = stored.targetCurrency || "BDT";
+  if (CURRENCIES[saved]) {
+    targetCurrencySelect.value = saved;
+  }
+}
+
+async function saveTargetCurrency() {
+  const code = targetCurrencySelect.value;
+  saveBtn.disabled = true;
+  saveStatus.textContent = "Fetching rates…";
+
+  await chrome.storage.local.set({ targetCurrency: code });
+
+  const response = await chrome.runtime.sendMessage({
+    type: "FETCH_RATES",
+    base: code,
+  });
+
+  saveBtn.disabled = false;
+
+  if (response?.ok) {
+    rates = response.rates;
+    ratesBase = response.ratesBase;
+    saveStatus.textContent = `Saved — tooltips will show ${code}`;
+    convert();
+    return;
+  }
+
+  saveStatus.textContent = "Could not fetch rates. Try again.";
 }
 
 async function init() {
+  populateCurrencySelects();
+  await loadSavedTargetCurrency();
+
   const response = await chrome.runtime.sendMessage({ type: "GET_RATES" });
   rates = response?.rates || null;
+  ratesBase = response?.ratesBase || "BDT";
 
   if (!rates) {
     errorMsg.style.display = "block";
@@ -74,7 +128,6 @@ async function init() {
     return;
   }
 
-  // Show when rates were last fetched
   const tsResponse = await chrome.runtime.sendMessage({
     type: "GET_RATES_TIMESTAMP",
   });
@@ -90,5 +143,6 @@ async function init() {
 
 amountInput.addEventListener("input", convert);
 currencySelect.addEventListener("change", convert);
+saveBtn.addEventListener("click", saveTargetCurrency);
 
 init();

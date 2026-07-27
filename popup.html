@@ -19,7 +19,7 @@
         background: #ffffff;
         color: #1a1a1a;
         width: 300px;
-        min-height: 280px;
+        min-height: 360px;
       }
 
       .header {
@@ -163,6 +163,55 @@
         padding: 10px 12px;
         margin-top: 8px;
       }
+
+      .settings-section {
+        margin-top: 4px;
+      }
+
+      .settings-label {
+        font-size: 11px;
+        color: #888;
+        font-weight: 500;
+        margin-bottom: 6px;
+      }
+
+      .settings-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .settings-row select {
+        flex: 1;
+      }
+
+      .save-btn {
+        background: #1d9e75;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        padding: 8px 14px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .save-btn:hover {
+        background: #178a66;
+      }
+
+      .save-btn:disabled {
+        background: #a0cfc0;
+        cursor: not-allowed;
+      }
+
+      .save-status {
+        font-size: 11px;
+        color: #0f6e56;
+        margin-top: 6px;
+        min-height: 14px;
+      }
     </style>
   </head>
   <body>
@@ -173,18 +222,7 @@
 
     <div class="body">
       <div class="from-row">
-        <select id="currency-select">
-          <option value="USD">🇺🇸 USD</option>
-          <option value="EUR">🇪🇺 EUR</option>
-          <option value="GBP">🇬🇧 GBP</option>
-          <option value="JPY">🇯🇵 JPY</option>
-          <option value="INR">🇮🇳 INR</option>
-          <option value="AUD">🇦🇺 AUD</option>
-          <option value="CAD">🇨🇦 CAD</option>
-          <option value="SGD">🇸🇬 SGD</option>
-          <option value="SAR">🇸🇦 SAR</option>
-          <option value="AED">🇦🇪 AED</option>
-        </select>
+        <select id="currency-select"></select>
         <input
           type="number"
           id="amount-input"
@@ -222,6 +260,17 @@
       <div id="error-msg" class="error-msg" style="display: none">
         Could not load rates. Something has gone wrong.
       </div>
+
+      <div class="divider"></div>
+
+      <div class="settings-section">
+        <div class="settings-label">Hover tooltip currency</div>
+        <div class="settings-row">
+          <select id="target-currency-select"></select>
+          <button id="save-btn" class="save-btn">Save</button>
+        </div>
+        <div class="save-status" id="save-status"></div>
+      </div>
     </div>
 
     <div class="footer" id="footer">
@@ -231,6 +280,7 @@
       >
     </div>
 
+    <script src="currencies.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

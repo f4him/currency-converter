@@ -1,24 +1,27 @@
-const BASE_URL = "https://api.frankfurter.dev/v2/rates?base=BDT";
-const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
+importScripts("currencies.js");
 
-async function fetchRates() {
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour in milliseconds
+const QUOTE_CODES = Object.keys(CURRENCIES).join(",");
+
+function ratesUrl(base) {
+  return `https://api.frankfurter.dev/v2/rates?base=${base}&quotes=${QUOTE_CODES}`;
+}
+
+async function fetchRates(base = "BDT") {
   try {
-    const response = await fetch(BASE_URL);
+    const response = await fetch(ratesUrl(base));
     if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
     const data = await response.json();
 
-    // Convert array of objects → flat map { quote: rate }
-    // e.g. [{ quote: "USD", rate: 0.00833 }] → { USD: 0.00833 }
     const rates = {};
     for (const entry of data) {
       rates[entry.quote] = entry.rate;
     }
-
-    // Add BDT itself (1 BDT = 1 BDT)
-    rates["BDT"] = 1;
+    rates[base] = 1;
 
     await chrome.storage.local.set({
-      rates: rates,
+      rates,
+      ratesBase: base,
       ratesTimestamp: Date.now(),
     });
 
@@ -30,25 +33,40 @@ async function fetchRates() {
 }
 
 async function getRates() {
-  const stored = await chrome.storage.local.get(["rates", "ratesTimestamp"]);
+  const stored = await chrome.storage.local.get([
+    "rates",
+    "ratesBase",
+    "ratesTimestamp",
+    "targetCurrency",
+  ]);
   const now = Date.now();
+  const targetCurrency = stored.targetCurrency || "BDT";
 
   if (
     stored.rates &&
+    stored.ratesBase === targetCurrency &&
     stored.ratesTimestamp &&
     now - stored.ratesTimestamp < CACHE_TTL
   ) {
-    return stored.rates;
+    return { rates: stored.rates, ratesBase: stored.ratesBase };
   }
 
-  return await fetchRates();
+  const rates = await fetchRates(targetCurrency);
+  return rates ? { rates, ratesBase: targetCurrency } : null;
 }
 
-// Listen for messages from content.js and popup.js
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === "GET_RATES") {
-    getRates().then((rates) => sendResponse({ rates }));
-    return true; // keep channel open for async response
+    getRates().then((result) => sendResponse(result || {}));
+    return true;
+  }
+
+  if (message.type === "FETCH_RATES") {
+    const base = message.base || "BDT";
+    fetchRates(base).then((rates) =>
+      sendResponse({ rates, ratesBase: base, ok: !!rates }),
+    );
+    return true;
   }
 
   if (message.type === "GET_RATES_TIMESTAMP") {
@@ -59,7 +77,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-// Pre-fetch rates when the extension is installed or updated
-chrome.runtime.onInstalled.addListener(() => {
-  fetchRates();
+chrome.runtime.onInstalled.addListener(async () => {
+  const { targetCurrency } = await chrome.storage.local.get("targetCurrency");
+  fetchRates(targetCurrency || "BDT");
 });

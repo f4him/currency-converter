@@ -1,52 +1,60 @@
-// content.js
 // Scans the webpage for price patterns, wraps them in a span,
-// and shows a BDT tooltip on hover.
-//
-// Rates are BDT-based: rates[currency] = how much 1 BDT is in that currency
-// So to convert foreign amount → BDT: bdtAmount = amount / rates[foreignCurrency]
+// and shows a tooltip in the user's selected currency on hover.
 
-const CURRENCY_SYMBOLS = {
-  $: "USD",
-  "€": "EUR",
-  "£": "GBP",
-  "¥": "JPY",
-  "₹": "INR",
-  "₩": "KRW",
-  A$: "AUD",
-  C$: "CAD",
-  S$: "SGD",
-};
-
-// Matches prices like $1,299 | €99.99 | £1,234.50 | ₹5000 | A$49
 const PRICE_REGEX = /(A\$|C\$|S\$|\$|€|£|¥|₹|₩)\s?([\d,]+(?:\.\d{1,2})?)/g;
 
 let cachedRates = null;
+let cachedRatesBase = "BDT";
+let targetCurrency = "BDT";
+
+async function loadSettings() {
+  const stored = await chrome.storage.local.get(["targetCurrency"]);
+  targetCurrency = stored.targetCurrency || "BDT";
+}
 
 async function loadRates() {
-  if (cachedRates) return cachedRates;
   const response = await chrome.runtime.sendMessage({ type: "GET_RATES" });
   cachedRates = response?.rates || null;
+  cachedRatesBase = response?.ratesBase || "BDT";
   return cachedRates;
 }
 
-function convertToBDT(amount, fromCurrency, rates) {
-  if (!rates || rates[fromCurrency] == null) return null;
-  if (fromCurrency === "BDT") return amount;
-  return amount / rates[fromCurrency];
+// rates[c] = units of c per 1 base
+function convertAmount(amount, from, to, rates, base) {
+  if (!rates || rates[from] == null || rates[to] == null) return null;
+  const inBase = from === base ? amount : amount / rates[from];
+  return to === base ? inBase : inBase * rates[to];
 }
 
-function formatBDT(amount) {
-  // Bangladeshi number format: 1,00,000 style (lakh system)
-  const fixed = Math.round(amount);
-  const str = fixed.toString();
-  if (str.length <= 3) return "৳ " + str;
-  const last3 = str.slice(-3);
-  const rest = str.slice(0, -3);
-  const formatted = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + last3;
-  return "৳ " + formatted;
+function formatCurrency(amount, code) {
+  const info = CURRENCIES[code];
+  if (!info) return amount.toFixed(2);
+
+  const decimals = info.decimals ?? 2;
+  const fixed =
+    decimals === 0 ? Math.round(amount) : Number(amount.toFixed(decimals));
+
+  if (code === "BDT") {
+    const str = fixed.toString();
+    if (str.length <= 3) return info.symbol + " " + str;
+    const last3 = str.slice(-3);
+    const rest = str.slice(0, -3);
+    const formatted =
+      rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + last3;
+    return info.symbol + " " + formatted;
+  }
+
+  const str = fixed.toFixed(decimals);
+  const formatted = str.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return info.symbol + " " + formatted;
 }
 
-// Shared tooltip element — created once, moved on hover
+function formatRateLine(from, to, rates, base) {
+  const oneUnit = convertAmount(1, from, to, rates, base);
+  if (oneUnit == null) return "";
+  return `1 ${from} = ${formatCurrency(oneUnit, to)}`;
+}
+
 const tooltip = document.createElement("div");
 tooltip.id = "bdt-tooltip";
 tooltip.style.cssText = `
@@ -67,10 +75,10 @@ tooltip.style.cssText = `
 `;
 document.body.appendChild(tooltip);
 
-function showTooltip(e, bdtText, amount, fromCurrency) {
+function showTooltip(e, convertedText, rateLine) {
   tooltip.innerHTML = `
-    <div style="font-size:16px;font-weight:600;color:#9FE1CB">${bdtText}</div>
-    <div style="font-size:12px;color:#fff;margin-top:2px">1 ${fromCurrency} = ${amount}</div>
+    <div style="font-size:16px;font-weight:600;color:#9FE1CB">${convertedText}</div>
+    <div style="font-size:12px;color:#fff;margin-top:2px">${rateLine}</div>
   `;
   tooltip.style.opacity = "1";
   positionTooltip(e);
@@ -89,11 +97,7 @@ function hideTooltip() {
   tooltip.style.opacity = "0";
 }
 
-function wrapPriceSpan(textNode, match, fromCurrency, amount, rates) {
-  const bdtAmount = convertToBDT(amount, fromCurrency, rates);
-  if (!bdtAmount) return;
-
-  const bdtText = formatBDT(bdtAmount);
+function wrapPriceSpan(textNode, match, fromCurrency, amount) {
   const span = document.createElement("span");
   span.className = "bdt-price";
   span.textContent = match;
@@ -102,11 +106,23 @@ function wrapPriceSpan(textNode, match, fromCurrency, amount, rates) {
     cursor: help;
     border-radius: 2px;
   `;
-  const a = formatBDT(1 / rates[fromCurrency]);
 
-  span.addEventListener("mouseover", (e) =>
-    showTooltip(e, bdtText, a, fromCurrency),
-  );
+  span.addEventListener("mouseover", (e) => {
+    if (!cachedRates) return;
+    const converted = convertAmount(
+      amount,
+      fromCurrency,
+      targetCurrency,
+      cachedRates,
+      cachedRatesBase,
+    );
+    if (converted == null) return;
+    showTooltip(
+      e,
+      formatCurrency(converted, targetCurrency),
+      formatRateLine(fromCurrency, targetCurrency, cachedRates, cachedRatesBase),
+    );
+  });
   span.addEventListener("mousemove", positionTooltip);
   span.addEventListener("mouseleave", hideTooltip);
 
@@ -115,7 +131,7 @@ function wrapPriceSpan(textNode, match, fromCurrency, amount, rates) {
   textNode.parentNode.insertBefore(span, after);
 }
 
-function scanTextNode(node, rates) {
+function scanTextNode(node) {
   const text = node.nodeValue;
   if (!text || text.trim().length === 0) return;
 
@@ -130,11 +146,12 @@ function scanTextNode(node, rates) {
   const fromCurrency = CURRENCY_SYMBOLS[symbol];
 
   if (!fromCurrency || isNaN(amount) || amount <= 0) return;
+  if (!cachedRates || cachedRates[fromCurrency] == null) return;
 
-  wrapPriceSpan(node, fullMatch, fromCurrency, amount, rates);
+  wrapPriceSpan(node, fullMatch, fromCurrency, amount);
 }
 
-function scanDocument(rates) {
+function scanDocument() {
   const walker = document.createTreeWalker(
     document.body,
     NodeFilter.SHOW_TEXT,
@@ -155,11 +172,27 @@ function scanDocument(rates) {
   const nodes = [];
   let node;
   while ((node = walker.nextNode())) nodes.push(node);
-  nodes.forEach((n) => scanTextNode(n, rates));
+  nodes.forEach((n) => scanTextNode(n));
 }
 
-// Main: load rates then scan
-loadRates().then((rates) => {
+async function init() {
+  await loadSettings();
+  const rates = await loadRates();
   if (!rates) return;
-  scanDocument(rates);
+  scanDocument();
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+
+  if (changes.targetCurrency) {
+    targetCurrency = changes.targetCurrency.newValue || "BDT";
+  }
+
+  if (changes.rates || changes.ratesBase) {
+    cachedRates = changes.rates?.newValue ?? cachedRates;
+    cachedRatesBase = changes.ratesBase?.newValue ?? cachedRatesBase;
+  }
 });
+
+init();
