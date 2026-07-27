@@ -37,29 +37,45 @@ function updateActiveBadge() {
   activeBadge.textContent = targetCurrency;
 }
 
-function formatBDT(amount) {
-  const fixed = Math.round(amount);
-  const str = fixed.toString();
-  if (str.length <= 3) return "৳ " + str;
+function formatBDT(amount, decimals = 0) {
+  const fixed =
+    decimals === 0 ? Math.round(amount) : Number(amount.toFixed(decimals));
+  const [integer, fraction] = fixed.toString().split(".");
+  const str = integer;
+  if (str.length <= 3) {
+    return "৳ " + (fraction ? `${str}.${fraction}` : str);
+  }
   const last3 = str.slice(-3);
   const rest = str.slice(0, -3);
   const formatted = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + last3;
-  return "৳ " + formatted;
+  return "৳ " + formatted + (fraction ? `.${fraction}` : "");
 }
 
-function formatCurrency(amount, code) {
+function formatCurrency(amount, code, options = {}) {
   const info = CURRENCIES[code];
-  if (!info) return amount.toFixed(2);
+  if (!info) {
+    const decimals = options.forceDecimals ?? 2;
+    return amount.toFixed(decimals);
+  }
 
-  const decimals = info.decimals ?? 2;
+  const decimals =
+    options.forceDecimals != null
+      ? options.forceDecimals
+      : (info.decimals ?? 2);
   const fixed =
     decimals === 0 ? Math.round(amount) : Number(amount.toFixed(decimals));
 
-  if (code === "BDT") return formatBDT(fixed);
+  if (code === "BDT") return formatBDT(fixed, decimals);
 
   const str = fixed.toFixed(decimals);
   const formatted = str.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return info.symbol + " " + formatted;
+}
+
+function formatRate(amount, code) {
+  const info = CURRENCIES[code];
+  const decimals = info ? Math.max(2, info.decimals ?? 2) : 2;
+  return formatCurrency(amount, code, { forceDecimals: decimals });
 }
 
 function convertAmount(amount, from, to) {
@@ -91,7 +107,7 @@ function convert() {
   toAmountOutput.textContent = formatCurrency(result, to);
 
   const oneUnit = convertAmount(1, from, to);
-  rateBadge.textContent = `1 ${from} = ${formatCurrency(oneUnit, to)}`;
+  rateBadge.textContent = `1 ${from} = ${formatRate(oneUnit, to)}`;
 }
 
 async function loadSavedTargetCurrency() {
