@@ -68,7 +68,7 @@ bd-currency-converter/
 
 ## Store links
 
-- [Chrome Webstore](#)
+- [Chrome Webstore](https://chromewebstore.google.com/detail/bppglhdfcfnjgcjjohneaidfkfaeomjm)
 - 🌐 [GitHub Repository](https://github.com/f4him/currency-converter)
 - ❤️ [Support me on Patreon](https://patreon.com/f4him)
 
