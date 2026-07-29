@@ -68,7 +68,10 @@ function escapeRegex(str) {
 }
 
 function buildPriceRegex() {
-  const symbols = [...new Set(Object.values(CURRENCIES).map((c) => c.symbol))]
+  const symbols = [...new Set(Object.values(CURRENCIES).flatMap((c) => {
+    const s = c.symbol;
+    return Array.isArray(s) ? s : [s];
+  }))]
     .sort((a, b) => b.length - a.length)
     .map(escapeRegex);
   const codes = Object.keys(CURRENCIES).sort((a, b) => b.length - a.length);
@@ -136,9 +139,10 @@ function guessRegionCurrency() {
 }
 
 function currenciesForSymbol(symbol) {
-  return Object.keys(CURRENCIES).filter(
-    (code) => CURRENCIES[code].symbol === symbol,
-  );
+  return Object.keys(CURRENCIES).filter((code) => {
+    const s = CURRENCIES[code].symbol;
+    return Array.isArray(s) ? s.includes(symbol) : s === symbol;
+  });
 }
 
 function resolveCurrencyCode(marker) {
@@ -151,7 +155,13 @@ function resolveCurrencyCode(marker) {
   const regionGuess = guessRegionCurrency();
   if (regionGuess && candidates.includes(regionGuess)) return regionGuess;
 
-  return CURRENCY_SYMBOLS[marker] || candidates[0];
+  const mapped = CURRENCY_SYMBOLS[marker];
+  if (Array.isArray(mapped) && mapped.length > 0) {
+    if (regionGuess && mapped.includes(regionGuess)) return regionGuess;
+    return mapped[0];
+  }
+
+  return candidates[0];
 }
 
 function parseLocaleAmount(raw) {
@@ -195,22 +205,23 @@ function formatCurrency(amount, code) {
   const info = CURRENCIES[code];
   if (!info) return amount.toFixed(2);
 
+  const symbol = Array.isArray(info.symbol) ? info.symbol[0] : info.symbol;
   const decimals = info.decimals ?? 2;
   const fixed =
     decimals === 0 ? Math.round(amount) : Number(amount.toFixed(decimals));
 
   if (code === "BDT") {
     const str = fixed.toString();
-    if (str.length <= 3) return info.symbol + " " + str;
+    if (str.length <= 3) return symbol + " " + str;
     const last3 = str.slice(-3);
     const rest = str.slice(0, -3);
     const formatted = rest.replace(/\B(?=(\d{2})+(?!\d))/g, ",") + "," + last3;
-    return info.symbol + " " + formatted;
+    return symbol + " " + formatted;
   }
 
   const str = fixed.toFixed(decimals);
   const formatted = str.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return info.symbol + " " + formatted;
+  return symbol + " " + formatted;
 }
 
 function formatRateLine(from, to, rates, base) {
