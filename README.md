@@ -1,4 +1,4 @@
-# BD Currency Converter
+# Currency Converter
 
 A chrome extension that lets you hover over prices on any webpage and instantly see the equivalent value in Bangladeshi Taka (BDT) or your chosen currency.
 
