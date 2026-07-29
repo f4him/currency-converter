@@ -9,7 +9,6 @@ function ratesUrl(base) {
 
 async function fetchRates(base = "BDT") {
   try {
-    console.log(ratesUrl());
     const response = await fetch(ratesUrl(base));
     if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
     const data = await response.json();

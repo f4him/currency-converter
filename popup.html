@@ -152,9 +152,21 @@
         margin-top: 2px;
       }
 
-      .footer {
-        padding: 8px 16px 12px;
+      .developer {
+        padding: 0 16px 8px;
         font-size: 11px;
+        color: #aaa;
+        text-align: center;
+      }
+
+      .developer a {
+        color: #1d9e75;
+        text-decoration: none;
+      }
+
+      .footer {
+        padding: 4px 16px 4px;
+        font-size: 12px;
         color: #aaa;
         text-align: center;
       }
@@ -222,8 +234,8 @@
       <section class="settings-section">
         <div class="section-title">Hover tooltip currency</div>
         <p class="section-desc">
-          Pick a currency and save. Hover over prices like $99, €49, or £25 on
-          any page to see the conversion.
+          Pick your currency and save. Hover over prices to see the converted
+          amount.
         </p>
         <div class="settings-row">
           <select id="target-currency-select"></select>
@@ -274,6 +286,12 @@
     <div class="footer" id="footer">
       Rates from
       <a href="https://frankfurter.dev" target="_blank">frankfurter.dev</a>
+    </div>
+    <div class="developer">
+      Not working?
+      <a href="https://f4him.github.io/contact" target="_blank">
+        Contact Developer</a
+      >
     </div>
 
     <script src="currencies.js"></script>
