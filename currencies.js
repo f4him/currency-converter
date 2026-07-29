@@ -235,6 +235,7 @@ const CURRENCY_SYMBOLS = {
   A$: "AUD",
   C$: "CAD",
   S$: "SGD",
+  "৳": "BDT",
   NZ$: "NZD",
   HK$: "HKD",
   R$: "BRL",

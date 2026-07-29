@@ -5,16 +5,37 @@ const ALIEXPRESS_HOST_RE = /(^|\.)((aliexpress)\.[a-z.]+|aliexpress)$/i;
 
 function toPriceCandidate(node) {
   if (!node || !(node instanceof Element)) return null;
-  // The primary price element is usually the first span containing a $ or numeric price
-  const span = node.querySelector('span[data-spm-anchor-id]') || node.querySelector('span');
-  if (!span) return null;
-  const text = span.textContent.trim();
-  // Match optional currency symbol followed by number (allow commas and periods)
-  const match = text.match(/^(?:[$€£¥₹₩]|[A-Z]{3})?([\d.,]+)$/);
+  // Prefer aria-label which often contains the full price string (e.g., "BDT13,602.73")
+  const aria = node.getAttribute && node.getAttribute('aria-label');
+  let text = '';
+  if (aria) {
+    text = aria.trim();
+  } else {
+    // Fallback: gather visible spans that together represent the price
+    const span = node.querySelector('span[data-spm-anchor-id]') || node.querySelector('span');
+    if (!span) return null;
+    text = span.textContent.trim();
+  }
+  // Match optional currency (symbol, three‑letter code, or "BDT") followed by a number with commas/decimals
+  const match = text.match(/^(?:\$|€|£|¥|₹|₩|BDT|[A-Z]{3})?([\d.,]+)$/i);
   if (!match) return null;
-  const amount = match[1];
-  const currency = /\$/.test(text) ? "USD" : null; // fallback to null for other symbols
-  return { element: span, amount, currency };
+  // Clean amount for parsing later (remove commas)
+  const amount = match[1].replace(/,/g, '');
+  // Resolve currency if explicitly present
+  const currencyMatch = text.match(/^(\$|€|£|¥|₹|₩|BDT|[A-Z]{3})/i);
+  let currency = null;
+  if (currencyMatch) {
+    const matchStr = currencyMatch[0];
+    if (/^\$/i.test(matchStr)) {
+      currency = 'USD';
+    } else if (/^BDT$/i.test(matchStr)) {
+      currency = 'BDT';
+    } else if (/^[A-Z]{3}$/i.test(matchStr)) {
+      currency = matchStr.toUpperCase();
+    }
+  }
+
+  return { element: node, amount, currency };
 }
 
 window.bdtAdapters = window.bdtAdapters || {};
@@ -36,8 +57,8 @@ window.bdtAdapters.aliexpress = {
       candidates.push(candidate);
     };
 
-    // Aliexpress product containers that hold price spans
-    const containers = root.querySelectorAll('.la_i0');
+    // Aliexpress product containers that hold price spans (including dynamic classes)
+    const containers = root.querySelectorAll('.la_i0, ._23lt5, ._3Mpbo, [aria-label]');
     containers.forEach(push);
 
     return candidates;

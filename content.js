@@ -12,11 +12,10 @@ const siteAdapters = [
   window.bdtAdapters?.ebay,
   window.bdtAdapters?.walmart,
   window.bdtAdapters?.temu,
-  window.bdtAdapters?.generic
+  window.bdtAdapters?.generic,
 ].filter(Boolean);
 
 // CURRENCIES and CURRENCY_SYMBOLS are already declared in currencies.js and shared via the global context
-
 
 // ============================================================
 // 1. STATE
@@ -137,7 +136,9 @@ function guessRegionCurrency() {
 }
 
 function currenciesForSymbol(symbol) {
-  return Object.keys(CURRENCIES).filter((code) => CURRENCIES[code].symbol === symbol);
+  return Object.keys(CURRENCIES).filter(
+    (code) => CURRENCIES[code].symbol === symbol,
+  );
 }
 
 function resolveCurrencyCode(marker) {
@@ -154,7 +155,9 @@ function resolveCurrencyCode(marker) {
 }
 
 function parseLocaleAmount(raw) {
-  const str = String(raw ?? "").trim().replace(/\s/g, "");
+  const str = String(raw ?? "")
+    .trim()
+    .replace(/\s/g, "");
   const lastComma = str.lastIndexOf(",");
   const lastDot = str.lastIndexOf(".");
 
@@ -193,7 +196,8 @@ function formatCurrency(amount, code) {
   if (!info) return amount.toFixed(2);
 
   const decimals = info.decimals ?? 2;
-  const fixed = decimals === 0 ? Math.round(amount) : Number(amount.toFixed(decimals));
+  const fixed =
+    decimals === 0 ? Math.round(amount) : Number(amount.toFixed(decimals));
 
   if (code === "BDT") {
     const str = fixed.toString();
@@ -275,7 +279,12 @@ function attachPriceBehavior(target, fromCurrency, amount) {
     showTooltip(
       e,
       formatCurrency(converted, targetCurrency),
-      formatRateLine(fromCurrency, targetCurrency, cachedRates, cachedRatesBase),
+      formatRateLine(
+        fromCurrency,
+        targetCurrency,
+        cachedRates,
+        cachedRatesBase,
+      ),
     );
   });
   target.addEventListener("mousemove", positionTooltip);
@@ -297,7 +306,11 @@ function wrapPriceSpan(textNode, matchText, matchIndex, fromCurrency, amount) {
 
 function shouldAnnotate(target) {
   if (!target || !(target instanceof Element)) return false;
-  if (target.dataset?.bdtPrice === "1" || target.classList.contains("bdt-price")) return false;
+  if (
+    target.dataset?.bdtPrice === "1" ||
+    target.classList.contains("bdt-price")
+  )
+    return false;
   return !target.closest("[data-bdt-price]");
 }
 
@@ -319,7 +332,10 @@ function annotateContainer(el, fromCurrency, amount) {
 let pageCurrencyHint = null;
 
 function getActiveAdapter(hostname = location.hostname) {
-  return siteAdapters.find((adapter) => adapter.matches(hostname)) || siteAdapters.at(-1);
+  return (
+    siteAdapters.find((adapter) => adapter.matches(hostname)) ||
+    siteAdapters.at(-1)
+  );
 }
 
 function extractPriceInfoFromText(text, fallbackCurrency = null) {
@@ -331,10 +347,12 @@ function extractPriceInfoFromText(text, fallbackCurrency = null) {
   const marker = m.groups.pre ?? m.groups.post;
   const amountStr = m.groups.amt1 ?? m.groups.amt2;
   const amount = parseLocaleAmount(amountStr);
-  if (isNaN(amount) || amount <= 0 || amount > MAX_REASONABLE_AMOUNT) return null;
+  if (isNaN(amount) || amount <= 0 || amount > MAX_REASONABLE_AMOUNT)
+    return null;
 
   const fromCurrency = resolveCurrencyCode(marker) || fallbackCurrency;
-  if (!fromCurrency || !cachedRates || cachedRates[fromCurrency] == null) return null;
+  if (!fromCurrency || !cachedRates || cachedRates[fromCurrency] == null)
+    return null;
 
   return { amount, fromCurrency };
 }
@@ -353,7 +371,12 @@ function processAdapterCandidate(candidate) {
   if (candidate?.amount != null) {
     const amount = parseLocaleAmount(candidate.amount);
     const fromCurrency = candidate.currency || pageCurrencyHint || null;
-    if (!isNaN(amount) && amount > 0 && fromCurrency && cachedRates?.[fromCurrency] != null) {
+    if (
+      !isNaN(amount) &&
+      amount > 0 &&
+      fromCurrency &&
+      cachedRates?.[fromCurrency] != null
+    ) {
       annotateContainer(element, fromCurrency, amount);
     }
     return;
@@ -387,32 +410,38 @@ function scanStructuredData(root) {
 
     const scope = el.closest("[itemscope]");
     const currencyEl = scope?.querySelector('[itemprop="priceCurrency"]');
-    const currency = currencyEl?.getAttribute("content") || currencyEl?.textContent;
+    const currency =
+      currencyEl?.getAttribute("content") || currencyEl?.textContent;
     if (!currency || !CURRENCIES[currency]) return;
 
     pageCurrencyHint = pageCurrencyHint || currency;
     annotateContainer(el, currency, amount);
   });
 
-  const ogCurrency = document.querySelector('meta[property="product:price:currency"]')?.content;
-  if (ogCurrency && CURRENCIES[ogCurrency]) pageCurrencyHint = pageCurrencyHint || ogCurrency;
+  const ogCurrency = document.querySelector(
+    'meta[property="product:price:currency"]',
+  )?.content;
+  if (ogCurrency && CURRENCIES[ogCurrency])
+    pageCurrencyHint = pageCurrencyHint || ogCurrency;
 
   if (!pageCurrencyHint) {
-    root.querySelectorAll('script[type="application/ld+json"]').forEach((script) => {
-      try {
-        const data = JSON.parse(script.textContent);
-        const items = Array.isArray(data) ? data : [data];
-        for (const item of items) {
-          const currency = item?.offers?.priceCurrency || item?.priceCurrency;
-          if (currency && CURRENCIES[currency]) {
-            pageCurrencyHint = currency;
-            break;
+    root
+      .querySelectorAll('script[type="application/ld+json"]')
+      .forEach((script) => {
+        try {
+          const data = JSON.parse(script.textContent);
+          const items = Array.isArray(data) ? data : [data];
+          for (const item of items) {
+            const currency = item?.offers?.priceCurrency || item?.priceCurrency;
+            if (currency && CURRENCIES[currency]) {
+              pageCurrencyHint = currency;
+              break;
+            }
           }
+        } catch {
+          // malformed JSON-LD is common in the wild — ignore and move on
         }
-      } catch {
-        // malformed JSON-LD is common in the wild — ignore and move on
-      }
-    });
+      });
   }
 }
 
@@ -452,10 +481,12 @@ function scanSplitPriceContainers(root) {
     const marker = match.groups.pre ?? match.groups.post;
     const amountStr = match.groups.amt1 ?? match.groups.amt2;
     const amount = parseLocaleAmount(amountStr);
-    if (isNaN(amount) || amount <= 0 || amount > MAX_REASONABLE_AMOUNT) continue;
+    if (isNaN(amount) || amount <= 0 || amount > MAX_REASONABLE_AMOUNT)
+      continue;
 
     const fromCurrency = resolveCurrencyCode(marker);
-    if (!fromCurrency || !cachedRates || cachedRates[fromCurrency] == null) continue;
+    if (!fromCurrency || !cachedRates || cachedRates[fromCurrency] == null)
+      continue;
 
     annotateContainer(el, fromCurrency, amount);
   }
@@ -481,10 +512,12 @@ function scanTextNode(node) {
     if (charAfter === "%") continue;
 
     const amount = parseLocaleAmount(amountStr);
-    if (isNaN(amount) || amount <= 0 || amount > MAX_REASONABLE_AMOUNT) continue;
+    if (isNaN(amount) || amount <= 0 || amount > MAX_REASONABLE_AMOUNT)
+      continue;
 
     const fromCurrency = resolveCurrencyCode(marker);
-    if (!fromCurrency || !cachedRates || cachedRates[fromCurrency] == null) continue;
+    if (!fromCurrency || !cachedRates || cachedRates[fromCurrency] == null)
+      continue;
 
     wrapPriceSpan(node, m[0], m.index, fromCurrency, amount);
   }
@@ -572,7 +605,8 @@ function observeRoot(root) {
   const observer = new MutationObserver((mutations) => {
     for (const m of mutations) {
       for (const node of m.addedNodes) {
-        if (node.nodeType === Node.ELEMENT_NODE && node.dataset?.bdtPrice) continue;
+        if (node.nodeType === Node.ELEMENT_NODE && node.dataset?.bdtPrice)
+          continue;
         scheduleRescan(root);
       }
       if (m.type === "characterData") scheduleRescan(root);
